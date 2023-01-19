@@ -1,0 +1,43 @@
+import psycopg2
+import yfinance as yf
+import numpy as np
+
+psycopg2.extensions.register_adapter(np.int64, psycopg2._psycopg.AsIs)
+
+ticker = 'AAPL'
+stock_data = yf.download(ticker, start='2021-8-1', end="2021-9-1")
+stock_data.index = np.datetime_as_string(stock_data.index, unit='D')
+stock_data['Ticker'] = ticker
+stock_data = stock_data.rename(columns={"Adj Close": "Adj_Close"})
+records = stock_data.to_records(index=True)
+
+conn = psycopg2.connect(database="Appl_DB", user='postgres', password='root', host='127.0.0.1', port= '5432')
+conn.autocommit = True
+cur = conn.cursor()
+cur.execute('''CREATE TABLE Stck_Appl
+               (
+                Date DATE NOT NULL,
+                Open FLOAT NOT NULL,
+                High FLOAT NOT NULL,
+                Low FLOAT NOT NULL,
+                Close FLOAT NOT NULL,
+                Adj_Close FLOAT NOT NULL,
+                Volume BIGINT NOT NULL,
+                Ticker VARCHAR(255) NOT NULL
+                );''')
+               
+print("Table created successfully")
+
+query = """INSERT INTO Stck_Appl (Date, Open, High, Low, Close, Adj_Close, Volume, Ticker)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
+cur.executemany(query, records)
+print("Data Insert Successfully")
+
+
+cur.execute("SELECT * from Stck_Appl LIMIT 5")
+rows = cur.fetchall()
+for row in rows:
+    print(row)
+
+print("Query done successfully");
+conn.close()
